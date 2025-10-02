@@ -129,3 +129,20 @@ class LiveChatChatsStream:
             if not chats:
                 log.info("No more chats found or reached last page.")
                 break
+
+            # Yield each chat record
+            for chat in chats:
+                record = {
+                    "chat_id": chat.get("chat_id"),
+                    "start_time": chat.get("start_time"),
+                    "end_time": chat.get("end_time"),
+                    "agent_id": chat.get("agent_id"),
+                    "agent_name": chat.get("agent_name"),
+                    "group_id": chat.get("group_id"),
+                    # Join list of tags into a single string
+                    "tags": ", ".join(chat.get("tags", [])),
+                    "duration": chat.get("duration"),
+                    "rating": chat.get("rate"),
+                    "customer_email": chat.get("visitor", {}).get("email"),
+                    "customer_ip": chat.get("visitor", {}).get("ip"),
+                }
