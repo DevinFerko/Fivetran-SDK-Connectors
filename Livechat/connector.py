@@ -47,7 +47,7 @@ class LiveChatChatsStream:
 
     # Defines the structure for the chats table
     SCHEMA = Schema(
-        name=TABLOE_NAME,
+        name=TABLE_NAME,
         primary_key=PRIMARY_KEY,
         sync_type=SyncType.INCREMENTAL,
         columns=[
@@ -81,4 +81,51 @@ class LiveChatChatsStream:
             password=config['"livechat_api_key']
         )
 
+        # Determine the starting point for incremental sync - Fivetran recommends UTC
+        last_synced_dt_str = state.get(self.TABLE_NAME, {}).get("last_synced_time")
+        if last_synced_dt_str:
+            last_synced_dt = datetime.fromisoformat(last_synced_dt_str).replace(tzinfo=timezone.utc)
+        else:
+            # Default to pulling the last 30days on the first run
+            last_synced_dt = datetime.now(timezone.utc) - timedelta(days=30)
         
+        start_date_param = last_synced_dt.isoformat().replace('+00:00', 'Z')
+
+        log.info(f"Starting incremental sync for {self.TABLE_NAME} from {start_date_param}")
+
+        # Today as the end date for the initial sync
+        end_date_param = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+
+        # api request parameters
+        params = {
+            "date_from": start_date_param,
+            "date_to": end_date_param,
+            "limit": 100,  # Max limit per LiveChat API docs
+            "page": 1
+        }
+
+        new_last_synced_time = last_synced_dt
+
+        while True:
+            log.info(f"Fetching page {params['page']} with date_from={params['date_from']}")
+
+            try:
+                response = request.get(
+                    url = self.API_ENDPOINT,
+                    auth = auth_header,
+                    params = params,
+                )
+                response.raise_for_status()
+                data = response.json()
+            except requests.exceptions.HTTPError as e:
+                log.error(f"HTTP Error: {e.response.status_code} - {e.response.text}")
+                break
+            except requests.exceptions.RequestException as e:
+                log.error(f"Request Exception: {str(e)}")
+                break
+            
+            chats = data.get("chats", [])
+            
+            if not chats:
+                log.info("No more chats found or reached last page.")
+                break
