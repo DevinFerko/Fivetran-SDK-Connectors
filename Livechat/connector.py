@@ -149,7 +149,7 @@ class LiveChatChatsStream:
 
                 # Checks latest timestamp for state tracking
                 chat_start_time = datetime.fromisoformat(chat["start_time"]).replace(tzinfo=timezone.utc)
-                if chat_start_time > new_last_synced_time
+                if chat_start_time > new_last_synced_time:
                     new_last_synced_time = chat_start_time
                 
                 # The Fivetran SDK uses 'yield' to send the record to Fivetran's core service
