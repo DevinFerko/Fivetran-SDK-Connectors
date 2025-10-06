@@ -147,4 +147,60 @@ class LiveChatChatsStream:
                     "customer_ip": chat.get("visitor", {}).get("ip"),
                 }
 
+                # Checks latest timestamp for state tracking
+                chat_start_time = datetime.fromisoformat(chat["start_time"]).replace(tzinfo=timezone.utc)
+                if chat_start_time > new_last_synced_time
+                    new_last_synced_time = chat_start_time
                 
+                # The Fivetran SDK uses 'yield' to send the record to Fivetran's core service
+                yield record
+
+            # Pagination handling
+            if len(chats) < params["limit"]:
+                log.info("Reached the last page of results.")
+                break
+
+            params["page"] += 1
+
+        # Update the state with the new timestamp
+        state[self.TABLE_NAME] = {
+            "last_synced_time": new_last_synced_time.isoformat().replace('+00:00', 'Z')
+        }
+
+        # Stream must yield final state before closing
+        yield {"__fivetran_state": state}
+
+# Connector Definition
+
+class LiveChatConnector(BaseConnector):
+
+    # Main fivetran connector class
+    def __init__(self):
+        self.streams = [LiveChatChatsStream()]
+
+    def read(self, connector: Connector) -> ReadResult:
+        # Main method called by Fivetran
+        log.info(f"Starting sync for LiveChat connector (Schema: {connector.schema.get('name')})")
+
+        # Yield schema definition
+        yield ReadResult(schema=[stream.get_schema() for stream in self.streams])
+
+        # Yield all records for each stream
+        for stream in self.streams:
+            for record in stream.read_stream(connector):
+                if "__fivetran_state" in record:
+                    # Yield the state update from the stream
+                    yield ReadResult(state=record["__fivetran_state"])
+                else:
+                    yield ReadResult(table_name=stream.TABLE_NAME, data=record)
+            
+        # Yield the final state once all streams are complete
+        log.info("LiveChat sync complete.")
+
+        return ReadResult()
+    
+# Main Execution Block
+
+if __name__ == "__main__":
+    # This function is the entry point for running the connector
+    run(LiveChatConnector())
