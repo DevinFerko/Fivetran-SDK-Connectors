@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 
 # --- 1. Define schema ---
 def get_schema(config):
-    return [{
+    return {"tables": [{
         "name": "chats",
         "primary_key": ["chat_id"],
         "columns": [
@@ -22,7 +22,7 @@ def get_schema(config):
             {"name": "customer_email", "type": "STRING"},
             {"name": "customer_ip", "type": "STRING"},
         ]
-    }]
+    }]}
 
 # --- 2. Define update function ---
 def update(config, state):
