@@ -1,71 +1,67 @@
-# -*- coding: utf-8 -*-
+from fivetran_connector_sdk import Connector, Response
+import requests, json, os
 
-from fivetran_connector_sdk import Connector, Operations as op, Logging as log
-import requests
-from datetime import datetime, timezone, timedelta
+CONFIG_PATH = "configuration.json"
+with open(CONFIG_PATH) as f:
+    cfg = json.load(f)
 
-# --- 1. Define schema ---
-def get_schema(config):
-    return {
-        "tables": {
-            "chats": {
-                "primary_key": ["chat_id"],
-                "columns": [
-                    {"name": "chat_id", "type": "STRING"},
-                    {"name": "start_time", "type": "DATE_TIME"},
-                    {"name": "end_time", "type": "DATE_TIME"},
-                    {"name": "agent_id", "type": "STRING"},
-                    {"name": "agent_name", "type": "STRING"},
-                    {"name": "group_id", "type": "INT"},
-                    {"name": "tags", "type": "STRING"},
-                    {"name": "duration", "type": "INT"},
-                    {"name": "rating", "type": "INT"},
-                    {"name": "customer_email", "type": "STRING"},
-                    {"name": "customer_ip", "type": "STRING"},
-                ],
+LIVECHAT_ACCESS_TOKEN = cfg["LIVECHAT_ACCESS_TOKEN"]
+LIVECHAT_API_BASE = "https://api.livechatinc.com/v3.5/agent"
+
+connector = Connector()
+
+@connector.Schema
+def schema(config):
+    return Response.success({
+        "chats": {
+            "primary_key": ["chat_id"],
+            "columns": {
+                "chat_id": "string",
+                "start_time": "string",
+                "end_time": "string",
+                "agent_id": "string",
+                "agent_name": "string",
+                "group_id": "int",
+                "tags": "string",
+                "duration": "int",
+                "rating": "int",
+                "customer_email": "string",
+                "customer_ip": "string"
             }
         }
-    }
+    })
 
-# --- 2. Define update function ---
-def update(config, state):
-    auth = requests.auth.HTTPBasicAuth(
-        config["livechat_email"], config["livechat_api_key"]
-    )
+@connector.Read
+def read(config, state):
+    headers = {"Authorization": f"Bearer {LIVECHAT_ACCESS_TOKEN}"}
+    resp = requests.get(f"{LIVECHAT_API_BASE}/chats", headers=headers)
+    resp.raise_for_status()
+    data = resp.json()
 
-    last_synced = state.get("chats", {}).get(
-        "last_synced_time",
-        (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),
-    )
+    chats = []
+    for c in data.get("chats", []):
+        chats.append({
+            "chat_id": c.get("id"),
+            "start_time": c.get("started_at"),
+            "end_time": c.get("ended_at"),
+            "agent_id": c.get("agents", [{}])[0].get("id"),
+            "agent_name": c.get("agents", [{}])[0].get("name"),
+            "group_id": c.get("group", {}).get("id", 0),
+            "tags": ",".join(c.get("tags", [])),
+            "duration": c.get("duration", 0),
+            "rating": c.get("rating", {}).get("score"),
+            "customer_email": c.get("visitor", {}).get("email"),
+            "customer_ip": c.get("visitor", {}).get("ip")
+        })
 
-    response = requests.get(
-        "https://api.livechatinc.com/v3.3/reporting/chats",
-        auth=auth,
-        params={"date_from": last_synced},
-    )
+    return Response.success(records={"chats": chats})
 
-    if response.status_code != 200:
-        log.error(f"API request failed with status code {response.status_code}: {response.text}")
-        return state
+@connector.Test
+def test(config):
+    headers = {"Authorization": f"Bearer {LIVECHAT_ACCESS_TOKEN}"}
+    r = requests.get(f"{LIVECHAT_API_BASE}/chats", headers=headers)
+    if r.status_code == 200:
+        return Response.success(message="LiveChat connection OK")
+    return Response.failure(message=f"LiveChat returned {r.status_code}: {r.text}")
 
-    try:
-        data = response.json()
-    except Exception as e:
-        log.error(f"Failed to parse JSON response: {e}")
-        return state
-
-    for chat in data.get("chats", []):
-        if isinstance(chat, dict):
-            op.upsert("chats", chat)
-        else:
-            log.warning(f"Unexpected record format: {chat}")
-
-    # Update sync state
-    state["chats"] = {"last_synced_time": datetime.now(timezone.utc).isoformat()}
-    return state
-
-# --- 3. Define the connector object ---
-connector = Connector(
-    update=update,
-    schema=get_schema
-)
+app = connector.app
