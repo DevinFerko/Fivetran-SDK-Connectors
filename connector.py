@@ -1,4 +1,4 @@
-from fivetran_connector_sdk import Connector, Response
+from fivetran_connector_sdk import Connector
 import requests, json, os
 
 CONFIG_PATH = "configuration.json"
@@ -8,11 +8,18 @@ with open(CONFIG_PATH) as f:
 LIVECHAT_ACCESS_TOKEN = cfg["LIVECHAT_ACCESS_TOKEN"]
 LIVECHAT_API_BASE = "https://api.livechatinc.com/v3.5/agent"
 
-connector = Connector()
+connector = Connector(update=True)
+
+# Helper functions for responses
+def success_response(data):
+    return {"status": "success", "data": data}
+
+def failure_response(message):
+    return {"status": "failure", "message": message}
 
 @connector.Schema
-def schema(config):
-    return Response.success({
+def schema(config, context):
+    return success_response({
         "chats": {
             "primary_key": ["chat_id"],
             "columns": {
@@ -32,11 +39,14 @@ def schema(config):
     })
 
 @connector.Read
-def read(config, state):
+def read(config, state, context):
     headers = {"Authorization": f"Bearer {LIVECHAT_ACCESS_TOKEN}"}
-    resp = requests.get(f"{LIVECHAT_API_BASE}/chats", headers=headers)
-    resp.raise_for_status()
-    data = resp.json()
+    try:
+        resp = requests.get(f"{LIVECHAT_API_BASE}/chats", headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.RequestException as e:
+        return failure_response(f"Failed to fetch chats: {str(e)}")
 
     chats = []
     for c in data.get("chats", []):
@@ -54,14 +64,16 @@ def read(config, state):
             "customer_ip": c.get("visitor", {}).get("ip")
         })
 
-    return Response.success(records={"chats": chats})
+    return success_response({"chats": chats})
 
 @connector.Test
-def test(config):
+def test(config, context):
     headers = {"Authorization": f"Bearer {LIVECHAT_ACCESS_TOKEN}"}
-    r = requests.get(f"{LIVECHAT_API_BASE}/chats", headers=headers)
-    if r.status_code == 200:
-        return Response.success(message="LiveChat connection OK")
-    return Response.failure(message=f"LiveChat returned {r.status_code}: {r.text}")
+    try:
+        r = requests.get(f"{LIVECHAT_API_BASE}/chats", headers=headers)
+        r.raise_for_status()
+        return success_response({"message": "LiveChat connection OK"})
+    except requests.RequestException as e:
+        return failure_response(f"LiveChat test failed: {str(e)}")
 
 app = connector.app

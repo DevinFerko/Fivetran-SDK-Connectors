@@ -7,20 +7,22 @@ from datetime import datetime, timezone, timedelta
 # --- 1. Define schema ---
 def get_schema(config):
     return {
-        "chats": {
-            "primary_key": ["chat_id"],
-            "columns": {
-                "chat_id": "string",
-                "start_time": "string",
-                "end_time": "string",
-                "agent_id": "string",
-                "agent_name": "string",
-                "group_id": "int",
-                "tags": "string",
-                "duration": "int",
-                "rating": "int",
-                "customer_email": "string",
-                "customer_ip": "string"
+        "tables": {
+            "chats": {
+                "primary_key": ["chat_id"],
+                "columns": [
+                    {"name": "chat_id", "type": "STRING"},
+                    {"name": "start_time", "type": "DATE_TIME"},
+                    {"name": "end_time", "type": "DATE_TIME"},
+                    {"name": "agent_id", "type": "STRING"},
+                    {"name": "agent_name", "type": "STRING"},
+                    {"name": "group_id", "type": "INT"},
+                    {"name": "tags", "type": "STRING"},
+                    {"name": "duration", "type": "INT"},
+                    {"name": "rating", "type": "INT"},
+                    {"name": "customer_email", "type": "STRING"},
+                    {"name": "customer_ip", "type": "STRING"},
+                ],
             }
         }
     }
