@@ -13,26 +13,61 @@ CONNECTIVITY_MESSAGE = "Successfully connected to LiveChat API. Key is valid."
 # Defines Schema for the connector
 def schema(configuration: dict):
     # Validate configuration
-    if 'my_key' not in configuration:
+    if 'LIVECHAT_ACCESS_TOKEN' not in configuration:
         # Log error if key is missing
         raise ValueError("Configuration must include 'my_key'.")
     
-    # Return schema definition
-    return [
-        {
-            "table": "lists_chats", 
-            "primary_key": ["id"]
-        }
+    # Known/Expected Resource list
+    known_tables = [
+        {"name": "chats", "pk": ["id"]}
+        #{"name": "threads", "pk": ["thread_id"]},
+        #{"name": "events", "pk": ["event_id"]},
     ]
 
+    # Return schema definition
+    schema_list = []
+    for tbl in known_tables:
+        schema_list.append({
+            "table": tbl["name"],
+            "primary_key": tbl["pk"]
+        })
+    return schema_list
+
 # Defines Update function for the connector
-def update(configuration: dict, state: dict):
-    # Placeholder for update logic
-    return state
+def update(configuration: dict, table: str, state: dict):
+    headers = {
+        "Authorization": f"Bearer {configuration['LIVECHAT_ACCESS_TOKEN']}",
+        "Accept": "application/json"
+    }
+    # Map table names to API endpoints
+    endpoint_map = {
+        "chats": "https://api.text.com/v2/chats" # Must be updated
+        #"threads": "https://api.text.com/v2/threads",
+        #"events": "https://api.text.com/v2/events"
+    }
 
+    # Validate table
+    if table not in endpoint_map:
+        raise ValueError(f"Unsupported table: {table}")
 
+    # Make API request
+    url = endpoint_map[table]
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
 
+    data = response.json()
 
+    # You may need to extract the list of items from a key, depending on API shape:
+    # e.g. if response looks like {"chats": [ ... ]}
+    if table in data:
+        records = data[table]
+    else:
+        records = data.get("data", data)  # fallback
+
+    # Optionally handle pagination here if the API paginates results
+    # (e.g. using next_page_token or links)
+
+    return records, state
 
 # Create the connector object using the schema and update functions
 connector = Connector(update=update, schema=schema)
