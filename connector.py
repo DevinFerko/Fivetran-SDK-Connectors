@@ -12,11 +12,12 @@ CONNECTIVITY_MESSAGE = "Successfully connected to LiveChat API. Key is valid."
 
 # Defines Schema for the connector
 def schema(configuration: dict):
+    # Validate configuration
     if 'my_key' not in configuration:
+        # Log error if key is missing
         raise ValueError("Configuration must include 'my_key'.")
     
-
-
+    # Return schema definition
     return [
         {
             "table": "lists_chats", 
@@ -24,6 +25,7 @@ def schema(configuration: dict):
         }
     ]
 
+# Defines Update function for the connector
 def update(configuration: dict, state: dict):
     # Placeholder for update logic
     return state
