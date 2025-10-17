@@ -35,9 +35,9 @@ def update(configuration: dict, table: str, state: dict):
     }
     # Map table names to API endpoints
     endpoint_map = {
-        "chats": "https://api.text.com/v2/chats" # Must be updated
-        #"threads": "https://api.text.com/v2/threads",
-        #"events": "https://api.text.com/v2/events"
+        "chats": "https://api.livechatinc.com/v3.5/agent/action/list_archives" # Must be updated
+        #"threads": "https://api.livechatinc.com/v3.5/agent/action/list_threads",
+        #"events": "https://api.livechatinc.com/v3.5/agent/action/list_events"
     }
 
     # Validate table
@@ -46,25 +46,24 @@ def update(configuration: dict, table: str, state: dict):
 
     # Make API request
     url = endpoint_map[table]
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
+    all_records = []
+    page_id = state.get("page_id")
+    
+    while True: 
+        params = {"page_id": page_id} if page_id else {}
+        response = requests.post(url, headers=headers, json=params)
+        response.raise_for_status()
+        data = response.json()
 
-    data = response.json()
+        records = data.get("items", [])
+        all_records.extend(records)
+        
+        page_id = data.get("next_page_id")
+        if not page_id:
+            break
+    
+    return all_records, {"page_id": page_id}
 
-    # You may need to extract the list of items from a key, depending on API shape:
-    # e.g. if response looks like {"chats": [ ... ]}
-    if table in data:
-        records = data[table]
-    else:
-        records = data.get("data", data)  # fallback
-
-    # Optionally handle pagination here if the API paginates results
-    # (e.g. using next_page_token or links)
-
-    return records, state
-
-# Create the connector object using the schema and update functions
-connector = Connector(update=update, schema=schema)
 
 # Check if the script is being run as the main module.
 # This is Python's standard entry method allowing your script to be run directly from the command line or IDE 'run' button.
@@ -75,5 +74,7 @@ if __name__ == "__main__":
     with open("configuration.json", "r") as f:
         configuration = json.load(f)
 
+    # Create the connector object using the schema and update functions
+    connector = Connector(update=update, schema=schema)
     # Test the connector locally
     connector.debug(configuration=configuration)
