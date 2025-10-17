@@ -25,13 +25,7 @@ def schema(configuration: dict):
     ]
 
     # Return schema definition
-    schema_list = []
-    for tbl in known_tables:
-        schema_list.append({
-            "table": tbl["name"],
-            "primary_key": tbl["pk"]
-        })
-    return schema_list
+    return [{"table": tbl["name"], "primary_key": tbl["pk"]} for tbl in known_tables]
 
 # Defines Update function for the connector
 def update(configuration: dict, table: str, state: dict):
